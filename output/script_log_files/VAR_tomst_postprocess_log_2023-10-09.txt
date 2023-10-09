@@ -1,0 +1,4 @@
+[1] "T1 data has 7 suspicious peaks or drops, that will be deleted"
+[1] "T2 data has 22 suspicious peaks or drops, that will be deleted"
+[1] "T3 data has 108 suspicious peaks or drops, that will be deleted"
+[1] "moist data has 41 suspicious peaks or drops, that will be deleted"
