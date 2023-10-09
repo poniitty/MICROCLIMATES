@@ -70,8 +70,8 @@ sites <- unique(df$site)
 # Plot timeseries month by month
 
 # Months to plot
-times <- seq(floor_date(as_date(min(df2$date)), "month"),
-             ceiling_date(as_date(max(df2$date)), "month") + months(1) - days(1),
+times <- seq(floor_date(as_date(min(df$datetime)), "month"),
+             ceiling_date(as_date(max(df$datetime)), "month") + months(1) - days(1),
              by = "month")
 
 # Plot each site month by month
