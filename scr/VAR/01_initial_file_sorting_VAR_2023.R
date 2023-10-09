@@ -5,7 +5,7 @@ library(tidyverse)
 
 area <- "VAR"
 
-source(list.files("scr/functions/", ".R$", full.names = T))
+invisible(lapply(list.files("scr/functions/", ".R$", full.names = T), source))
 
 data_dir <- "D:/VAR"
 
