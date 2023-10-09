@@ -74,6 +74,9 @@ gc()
 ###################################################################
 # Detect and remove erroneous peaks
 
+# Create a log-files to store information about the altered data
+sink(paste0("output/script_log_files/",area,"_tomst_postprocess_log_",Sys.Date(),".txt"))
+
 # reference time series
 
 refts <- df %>% 
@@ -206,6 +209,7 @@ df <- df %>%
   mutate(moist = ifelse(rollmax(outlier, 5, align = "center", fill = 0) == 1, NA, moist)) %>% 
   select(site:error_tomst) %>% 
   ungroup()
+sink()
 
 ####################################################################################
 # Fill NA rows if missing time-stamps
