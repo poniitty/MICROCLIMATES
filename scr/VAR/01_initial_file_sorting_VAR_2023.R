@@ -9,6 +9,17 @@ source(list.files("scr/functions/", ".R$", full.names = T))
 
 data_dir <- "D:/VAR"
 
+# Create needed folders if not exists
+if(!dir.exists(paste0("data/",area))){
+  dir.create(paste0("data/",area))
+}
+if(!dir.exists(paste0("output/",area))){
+  dir.create(paste0("output/",area))
+}
+if(!dir.exists(paste0("scr/",area))){
+  dir.create(paste0("scr/",area))
+}
+
 # List binary and command files to be removed from repository if also data file exists
 
 f <- c(list.files(data_dir, pattern = "binary_", recursive = T, full.names = T),
