@@ -1,9 +1,9 @@
 fill_timestamps <- function(tomstid, df){
-  #tomstid <- "94194336"
+  #tomstid <- "94212204"
   
-  df %>% filter(tomst_id == tomstid) -> temp
+  df %>% ungroup %>% filter(tomst_id == tomstid) -> temp
   
-  temp %>% mutate(timediff = as.numeric(datetime - lag(datetime))) -> temp
+  temp %>% arrange(datetime) %>% mutate(timediff = as.numeric(datetime - lag(datetime))) -> temp
   temp[1,"timediff"] <- 15
   holes <- table(temp$timediff)
   
@@ -13,7 +13,6 @@ fill_timestamps <- function(tomstid, df){
     
     missingt <- c()
     for(ii in which(temp %>% pull(timediff) > 15)){
-      
       temp %>% slice((ii-1):(ii+1)) %>% pull(timediff) -> diffs
       
       if(diffs[1] %% 15 == 0L){
@@ -33,15 +32,18 @@ fill_timestamps <- function(tomstid, df){
       }
     }
     
-    missingdf <- data.frame(datetime = ymd_hms(missingt, tz = lubridate::tz(temp$datetime)),
-                            tomst_id = as.numeric(tomstid))
+    missingdf <- data.frame(datetime = as_datetime(missingt),
+                            tomst_id = as.numeric(tomstid)) %>% 
+      mutate(datetime = with_tz(datetime, tzone = lubridate::tz(temp$datetime))) %>% 
+      tibble
     
     print(paste0("Adding ", nrow(missingdf), " empty row(s)"))
     
     temp %>% full_join(., missingdf, by = c("datetime", "tomst_id")) %>% 
+      fill(site) %>% 
       arrange(site, datetime) %>% 
       select(-timediff) %>% 
-      fill(site, probl) -> temp
+      fill(probl) -> temp
     
   } else {
     
@@ -54,11 +56,11 @@ fill_timestamps <- function(tomstid, df){
 
 # Same but using site instead of tomst id
 fill_timestamps_site <- function(siteid, df){
-  #siteid <- "VAR001"
+  #siteid <- "RAS001"
   
-  df %>% filter(site == siteid) -> temp
+  df %>% ungroup %>% filter(site == siteid) -> temp
   
-  temp %>% mutate(timediff = as.numeric(datetime - lag(datetime))) -> temp
+  temp %>% arrange(datetime) %>% mutate(timediff = as.numeric(datetime - lag(datetime))) -> temp
   temp[1,"timediff"] <- 15
   holes <- table(temp$timediff)
   
@@ -76,7 +78,7 @@ fill_timestamps_site <- function(siteid, df){
             temp %>% slice(ii) %>% pull(datetime), by = "15 mins") -> seqs
         
         missingt <- c(missingt, 
-                      as.character(seqs[which(!seqs %in% (temp %>% slice((ii-1):(ii+1)) %>% pull(datetime)))]))
+                      as.numeric(seqs[which(!seqs %in% (temp %>% slice((ii-1):(ii+1)) %>% pull(datetime)))]))
         
       } else {
         seq(temp %>% slice(ii-1) %>% pull(datetime),
@@ -88,15 +90,18 @@ fill_timestamps_site <- function(siteid, df){
       }
     }
     
-    missingdf <- data.frame(datetime = ymd_hms(missingt, tz = lubridate::tz(temp$datetime)),
-                            site = siteid)
+    missingdf <- data.frame(datetime = as_datetime(missingt),
+                            site = siteid) %>% 
+      mutate(datetime = with_tz(datetime, tzone = lubridate::tz(temp$datetime))) %>% 
+      tibble
     
     print(paste0("Adding ", nrow(missingdf), " empty row(s)"))
     
     temp %>% full_join(., missingdf, by = c("datetime", "site")) %>% 
+      fill(site) %>% 
       arrange(site, datetime) %>% 
       select(-timediff) %>% 
-      fill(site, error_tomst) -> temp
+      fill(tomst_id, error_tomst) -> temp
     
   } else {
     
