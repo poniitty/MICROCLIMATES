@@ -7,7 +7,7 @@ area <- "VAR"
 
 invisible(lapply(list.files("scr/functions/", ".R$", full.names = T), source))
 
-data_dir <- "D:/VAR"
+data_dir <- "/scratch/project_2007415/microclim/2023_data/VAR"
 
 # Create needed folders if not exists
 if(!dir.exists(paste0("data/",area))){

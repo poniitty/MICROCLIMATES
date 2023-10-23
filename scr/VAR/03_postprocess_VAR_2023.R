@@ -46,7 +46,8 @@ df <- left_join(df, visittimes %>% mutate(visit = 1) %>% rename(datetime = maxdt
 df <- df %>% mutate(T1 = ifelse(rollmax((T1 < (-40) | T1 > 30), 3, align = "center", fill = 0) == 1, NA, T1),
                     T2 = ifelse(rollmax((T2 < (-60) | T2 > 50), 3, align = "center", fill = 0) == 1, NA, T2),
                     T3 = ifelse(rollmax((T3 < (-60) | T3 > 50), 3, align = "center", fill = 0) == 1, NA, T3),
-                    moist = ifelse(rollmax((moist < 200 | moist >= 4096), 3, align = "center", fill = 0) == 1, NA, moist))
+                    moist = ifelse(rollmax((moist < 200 | moist >= 4080), 3, align = "center", fill = 0) == 1, NA, moist)) %>% 
+  ungroup()
 
 ##############################################################################
 # Filter by error code, i.e., remove values reported manually erroneous
@@ -73,17 +74,73 @@ gc()
 ###################################################################
 # Detect and remove erroneous peaks
 
+# Check measurement intervals
+
+sites <- unique(df$site)
+
+frqs <- lapply(sites, function(i){
+  df %>% filter(site == i) -> temp
+  temp %>% mutate(timediff = as.numeric(datetime - lag(datetime))) -> temp
+  x <- unique(na.omit(temp$timediff))
+  names(x) <- i
+  return(x)
+})
+names(frqs) <- sites
+table(unlist(frqs)) # Many sites have various measurement intervals
+
+# Force this one site to 15 min intervals
+
+if(any(unlist(lapply(frqs, length)) > 1) | any(unlist(frqs) == 10)){
+  
+  df <- lapply(frqs, function(i){
+    
+    if((length(i) > 1 ) | any(i == 10)){
+      print(names(i))
+      
+      temp <- df %>% filter(site == names(i)[1]) %>% 
+        filter(!is.na(datetime))
+      
+      temp <- full_join(temp,
+                        tibble(datetime = seq(min(temp$datetime), max(temp$datetime), by = '15 mins'),
+                               keep = TRUE)) %>%
+        arrange(datetime) %>%
+        mutate(across(T1:moist, ~na.approx(.x, datetime, maxgap = 1, na.rm = F))) %>%
+        filter(keep) %>%
+        fill(site, tomst_id, error_tomst) %>%
+        select(-keep)
+      return(temp)
+    } else {
+      return(df %>% filter(site == names(i)))
+    }
+  }) %>% 
+    bind_rows()
+  gc()
+  
+  frqs <- lapply(sites, function(i){
+    df %>% filter(site == i) -> temp
+    temp %>% mutate(timediff = as.numeric(datetime - lag(datetime))) -> temp
+    x <- unique(na.omit(temp$timediff))
+    names(x) <- i
+    return(x)
+  })
+  names(frqs) <- sites
+  table(unlist(frqs)) # All have now 15 min intervals
+}
+
 # Create a log-files to store information about the altered data
 sink(paste0("output/script_log_files/",area,"_tomst_postprocess_log_",Sys.Date(),".txt"))
 
-# reference time series
-
+#######################################################################
+# reference time series for peak identification
+gc()
 refts <- df %>% 
   group_by(datetime) %>% 
   summarise(across(c(T1,T2,T3,moist), list(mean = ~mean(.x, na.rm = TRUE), sd = ~sd(.x, na.rm = TRUE)), .names = "{col}_{fn}"))
 
 df <- left_join(df,
                 refts)
+gc()
+
 # T1
 
 df <- df %>% 
@@ -103,9 +160,9 @@ df <- df %>%
          # Absolute difference to previous measurement is higher than 5C
          outlier = ifelse(abs(T1l) > 5, TRUE, outlier),
          # Absolute difference to next measurement is higher than 5C
-         outlier = ifelse(T1h > 2 & T1l > 2, TRUE, outlier),
+         outlier = ifelse(T1h > 2 & T1l > 2 & abs(T1_diff - T1_diff_roll) > 2, TRUE, outlier),
          # Sudden reversible peak is higher than 2C
-         outlier = ifelse(T1h < (-2) & T1l < (-2), TRUE, outlier)
+         outlier = ifelse(T1h < (-2) & T1l < (-2) & abs(T1_diff - T1_diff_roll) > 2, TRUE, outlier)
          # Sudden reversible drop is lower than 2C
   )
 
@@ -135,11 +192,11 @@ df <- df %>%
          # Absolute difference to previous measurement is higher than 10C
          outlier = ifelse(abs(T2l) > 10, TRUE, outlier),
          # Absolute difference to next measurement is higher than 10C
-         outlier = ifelse(T2h > 5 & T2l > 5, TRUE, outlier),
+         outlier = ifelse(T2h > 5 & T2l > 5, TRUE & abs(T2_diff - T2_diff_roll) > 5, outlier),
          # Sudden reversible peak is higher than 5C
-         outlier = ifelse(T2h < (-5) & T2l < (-5), TRUE, outlier)
+         outlier = ifelse(T2h < (-5) & T2l < (-5) & abs(T2_diff - T2_diff_roll) > 5, TRUE, outlier)
          # Sudden reversible drop is lower than 5C
-         )
+  )
 
 print(paste0("T2 data has ", sum(df$outlier, na.rm = T), " suspicious peaks or drops, that will be deleted"))
 
@@ -167,9 +224,9 @@ df <- df %>%
          # Absolute difference to previous measurement is higher than 10C
          outlier = ifelse(abs(T3l) > 10, TRUE, outlier),
          # Absolute difference to next measurement is higher than 10C
-         outlier = ifelse(T3h > 5 & T3l > 5, TRUE, outlier),
+         outlier = ifelse(T3h > 8 & T3l > 8 & abs(T3_diff - T3_diff_roll) > 8, TRUE, outlier),
          # Sudden reversible peak is higher than 5C
-         outlier = ifelse(T3h < (-5) & T3l < (-5), TRUE, outlier)
+         outlier = ifelse(T3h < (-8) & T3l < (-8) & abs(T3_diff - T3_diff_roll) > 8, TRUE, outlier)
          # Sudden reversible drop is lower than 5C
   )
 
@@ -189,15 +246,15 @@ df <- df %>%
   mutate(moisth = moist-lag(moist),
          moistl = moist-lead(moist)) %>% 
   mutate(outlier = FALSE) %>% 
-  mutate(outlier = ifelse(abs(moist_diff - moist_diff_roll) > 1000, TRUE, outlier),
+  mutate(outlier = ifelse(abs(moist_diff - moist_diff_roll) > 1500, TRUE, outlier),
          # Momentous absolute difference to the smoothed difference to reference timeseries is more than 1000
-         outlier = ifelse(abs(moisth) > 1500, TRUE, outlier),
-         # Absolute difference to previous measurement is higher than 1500
-         outlier = ifelse(abs(moistl) > 1000, TRUE, outlier),
+         outlier = ifelse(moisth > 2000, TRUE, outlier),
+         # difference to previous measurement is higher than 1500
+         outlier = ifelse(moistl > 1000, TRUE, outlier),
          # Absolute difference to next measurement is higher than 1000
-         outlier = ifelse(moisth > 300 & moistl > 300, TRUE, outlier),
+         outlier = ifelse(moisth > 1000 & moistl > 1000 & abs(moist_diff - moist_diff_roll) > 1000, TRUE, outlier),
          # Sudden reversible peak is higher than 300
-         outlier = ifelse(moisth < (-100) & moistl < (-100), TRUE, outlier)
+         outlier = ifelse(moisth < (-500) & moistl < (-500) & abs(moist_diff - moist_diff_roll) > 500, TRUE, outlier)
          # Sudden reversible drop is lower than 100
   )
 
@@ -208,6 +265,7 @@ df <- df %>%
   mutate(moist = ifelse(rollmax(outlier, 5, align = "center", fill = 0) == 1, NA, moist)) %>% 
   select(site:error_tomst) %>% 
   ungroup()
+
 sink()
 
 ####################################################################################

@@ -12,9 +12,9 @@ invisible(lapply(list.files("scr/functions/", ".R$", full.names = T), source))
 mind <- as.Date("2018-06-01", tz = "Etc/GMT-2")
 maxd <- as.Date("2023-10-01", tz = "Etc/GMT-2")
 
-raw_data_dir <- "D:/VAR"
-old_data_dir <- "C:/Users/poniitty/OneDrive - Jyväskylän yliopisto/Kesä2023/microclim_data/data_2022/VAR"
-temp_dir <- "C:/Users/poniitty/temp"
+raw_data_dir <- "/scratch/project_2007415/microclim/2023_data/VAR"
+old_data_dir <- "/projappl/project_2003061/repos/microclim_varrio/output/"
+temp_dir <- "/scratch/project_2007415/temp/"
 
 #################################################################################3
 # Read earlier visiting/reading times
@@ -200,14 +200,25 @@ df <- bind_rows(od,df) %>%
 df <- df %>% 
   distinct(site, datetime, .keep_all = T)
 
-pdf(paste0(temp_dir,"/Temperature_graphs_corrected.pdf"), 15, 10)
-for(i in unique(df$site)){
+########################################################################
+# FILL MISSING TIMESTAMPS WITH NA
+
+tids <- unique(df$site)
+
+df <- lapply(tids, fill_timestamps_site, df = df) %>% 
+  bind_rows()
+
+df <- df %>% 
+  distinct(site, datetime, .keep_all = T)
+
+pdf(paste0(temp_dir,"/Temperature_graphs.pdf"), 15, 10)
+for(i in unique(df$site) %>% sort){
   # i <- "VAR041"
   print(i)
   df %>% filter(site == i) %>% 
     mutate(T1 = as.numeric(ifelse(error_tomst %in% c(1,4,9), NA, T1))) %>% 
     mutate(T2 = as.numeric(ifelse(error_tomst %in% c(1,7,8), NA, T2))) %>% 
-    mutate(T3 = as.numeric(ifelse(error_tomst %in% c(1,4,5,7,8), NA, T3))) %>% 
+    mutate(T3 = as.numeric(ifelse(error_tomst %in% c(1,4,5,7,8,10), NA, T3))) %>% 
     #group_by(date) %>% 
     #summarise_at(vars(i, "soil"), funs(mean, min, max), na.rm = T) %>% 
     #lapply(function(x) replace(x, is.infinite(x),NA)) %>% as_tibble() %>% 
@@ -221,7 +232,7 @@ for(i in unique(df$site)){
     ggtitle(i) -> GG1
   
   df %>% filter(site == i) %>% 
-    mutate(moist = as.numeric(ifelse(error_tomst %in% c(1,6,8,9), NA, moist))) %>% 
+    mutate(moist = as.numeric(ifelse(error_tomst %in% c(1,6,8,9,10), NA, moist))) %>% 
     mutate(moist = as.numeric(ifelse(T1 <= 1, NA, moist))) %>% 
     #group_by(date) %>% 
     #summarise_at(vars(i, "soil"), funs(mean, min, max), na.rm = T) %>% 
