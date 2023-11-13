@@ -2,14 +2,19 @@ correct_tomst_cross_sensor <- function(tomsts_to_cor, df){
   print(paste0("Calculating correction values for ", length(tomsts_to_cor), " logger(s)..."))
   diffs_all <- tibble()
   for(i in tomsts_to_cor){
+    # i <- "94214307"
     office <- df %>% filter(tomst_id == i) %>% 
       filter(probl == 2) %>% pull(datetime) %>% 
       as_date() %>% unique()
     office <- office[-which(office == max(office))]
     
-    df %>% filter(tomst_id == i) %>%
+    df %>% filter(tomst_id == i) %>% 
       mutate(date = as_date(datetime)) %>% 
-      filter(date %in% office) %>% 
+      filter(date %in% office) %>%
+      filter((T1 > (-30) & T1 < 30),
+             (T2 > (-30) & T2 < 30),
+             (T3 > (-30) & T3 < 30),
+             (moist > 0 & T2 < 1000)) %>% 
       mutate(change1a = abs(T3 - lag(T3,1)),
              change1b = abs(T3 - lag(T3,2)),
              change1c = abs(T3 - lag(T3,3)),

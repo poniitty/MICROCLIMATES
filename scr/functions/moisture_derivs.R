@@ -47,7 +47,7 @@ qcd <- function(x, na.rm = T){
 }
 
 moisture_derivs_inner <- function(siteid, df_micro, quant){
-  # siteid <- "RAS001"
+  # siteid <- "OUL001"
   print(siteid)
   
   temp <- df_micro %>% filter(site == siteid | is.na(site)) %>% 
@@ -75,7 +75,7 @@ moisture_derivs_inner <- function(siteid, df_micro, quant){
   
   funcs <- list(mean = ~mean(.x, na.rm = T),
                 median = ~median(.x, na.rm = T),
-                max = ~mean(.x, na.rm = T),
+                max = ~max(.x, na.rm = T),
                 min = ~min(.x, na.rm = T),
                 sd = ~sd(.x, na.rm = T),
                 var = ~var(.x, na.rm = T),
@@ -108,7 +108,6 @@ moisture_derivs_inner <- function(siteid, df_micro, quant){
   # Ice free season, i.e., soil T >= 1C
   
   d2 <- tempd %>% 
-    filter(year %in% comp_years$year) %>% 
     group_by(year) %>% 
     summarise(across(c(moist,moistsat), funcs),
               round2(across(moist_imp, ~mean(.x, na.rm = T)*100))) %>% 
@@ -118,12 +117,12 @@ moisture_derivs_inner <- function(siteid, df_micro, quant){
                  names_to = c("moist_type", ".value"), 
                  names_sep="_" ) %>% 
     pivot_longer(-c(period, year, moist_imp, moist_type),
-                 names_to = "var", values_to = "value")
+                 names_to = "var", values_to = "value") %>% 
+    filter(year %in% comp_years$year)
   
   # Growing season
   
   gsl <- tempd %>% 
-    filter(year %in% d1$year) %>% 
     group_by(year) %>% 
     mutate(gr = rleid(T3 >= 3)) %>% 
     group_by(year, gr) %>% 
@@ -277,18 +276,23 @@ moisture_derivs_inner <- function(siteid, df_micro, quant){
     unnest(moist_imp) %>% 
     select(-data, -model)
   
-  d9 <- bind_rows(mods %>% unnest(tidied) %>% filter(term == "doy") %>% 
-                    select(year, moist_imp, estimate) %>% 
-                    mutate(period = "ice_free_season", 
-                           var = "trend_slope",
-                           moist_type = "moist") %>% 
-                    rename(value = estimate),
-                  mods %>% unnest(glanced) %>%
-                    select(year, moist_imp, r.squared) %>% 
-                    mutate(period = "ice_free_season", 
-                           var = "trend_r2",
-                           moist_type = "moist") %>% 
-                    rename(value = r.squared))
+  if(nrow(mods) > 0){
+    d9 <- bind_rows(mods %>% unnest(tidied) %>% filter(term == "doy") %>% 
+                      select(year, moist_imp, estimate) %>% 
+                      mutate(period = "ice_free_season", 
+                             var = "trend_slope",
+                             moist_type = "moist") %>% 
+                      rename(value = estimate),
+                    mods %>% unnest(glanced) %>%
+                      select(year, moist_imp, r.squared) %>% 
+                      mutate(period = "ice_free_season", 
+                             var = "trend_r2",
+                             moist_type = "moist") %>% 
+                      rename(value = r.squared))
+  } else {
+    d9 <- tibble()
+  }
+  
   
   # Trends along the growing season
   
@@ -306,18 +310,23 @@ moisture_derivs_inner <- function(siteid, df_micro, quant){
     unnest(moist_imp) %>% 
     select(-data, -model)
   
-  d10 <- bind_rows(mods %>% unnest(tidied) %>% filter(term == "doy") %>% 
-                    select(year, moist_imp, estimate) %>% 
-                    mutate(period = "ice_free_season", 
-                           var = "trend_slope",
-                           moist_type = "moistsat") %>% 
-                    rename(value = estimate),
-                  mods %>% unnest(glanced) %>%
-                    select(year, moist_imp, r.squared) %>% 
-                    mutate(period = "ice_free_season", 
-                           var = "trend_r2",
-                           moist_type = "moistsat") %>% 
-                    rename(value = r.squared))
+  if(nrow(mods) > 0){
+    d10 <- bind_rows(mods %>% unnest(tidied) %>% filter(term == "doy") %>% 
+                       select(year, moist_imp, estimate) %>% 
+                       mutate(period = "ice_free_season", 
+                              var = "trend_slope",
+                              moist_type = "moistsat") %>% 
+                       rename(value = estimate),
+                     mods %>% unnest(glanced) %>%
+                       select(year, moist_imp, r.squared) %>% 
+                       mutate(period = "ice_free_season", 
+                              var = "trend_r2",
+                              moist_type = "moistsat") %>% 
+                       rename(value = r.squared))
+  } else {
+    d10 <- tibble()
+  }
+  
   
   
   # Combine

@@ -3,7 +3,7 @@ microclim_derivs <- function(df_micro, quant){
   library(tidyverse)
   library(lubridate)
   library(scales)
-  # Create more time variables and add empty days for uncompliete years
+  # Create more time variables and add empty days for incomplete years
   df_micro <- df_micro %>% 
     mutate(date = as_date(datetime)) %>% 
     mutate(year = year(date))
