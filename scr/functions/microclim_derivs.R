@@ -225,7 +225,7 @@ microclim_derivs_inner <- function(siteid, df_micro, quant_max, quant_min){
               .groups = "drop") %>% 
     group_by(year, month) %>% 
     summarise(across(T1:T3, ~mean(.x, na.rm = F)),
-              round2(across(T1_imp:T3_imp, ~mean(.x, na.rm = F)*100)),
+              round2(across(T1_imp:T3_imp, ~mean(.x, na.rm = F))),
               .groups = "drop") %>% 
     drop_na() %>% 
     mutate(period = month.abb[month], 
