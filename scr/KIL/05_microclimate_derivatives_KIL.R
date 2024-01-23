@@ -21,13 +21,13 @@ df <- df %>%
 ####################################################################
 # Thermal stuff
 
-dtvs <- microclim_derivs(df_micro = df, quant = 0.001)
+dtvs <- microclim_derivs(df_micro = df, quant_max = 0.999, quant_min = 0.001)
 
 write_csv(dtvs, paste0("output/",area,"/tomst_temperature_variables.csv"))
 
 ##########################################################
 # Moisture
 
-mtvs <- moisture_derivs(df_micro = df, quant = 0.001)
+mtvs <- moisture_derivs(df_micro = df)
 
 write_csv(mtvs, paste0("output/",area,"/tomst_moisture_variables.csv"))
