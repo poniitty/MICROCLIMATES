@@ -1,5 +1,5 @@
 
-moisture_derivs <- function(df_micro, quant){
+moisture_derivs <- function(df_micro){
   library(tidyverse)
   library(lubridate)
   library(scales)
@@ -25,7 +25,7 @@ moisture_derivs <- function(df_micro, quant){
   
   sites <- unique(df_micro$site) %>% na.omit %>% sort
   
-  dall <- lapply(sites, moisture_derivs_inner, df_micro = df_micro, quant = quant)
+  dall <- lapply(sites, moisture_derivs_inner, df_micro = df_micro)
   
   dall <- dall %>% 
     bind_rows()
@@ -46,7 +46,7 @@ qcd <- function(x, na.rm = T){
   return(diff(quantile(x, c(0.25,0.75), na.rm = na.rm))/sum(quantile(x, c(0.25,0.75), na.rm = na.rm)))
 }
 
-moisture_derivs_inner <- function(siteid, df_micro, quant){
+moisture_derivs_inner <- function(siteid, df_micro){
   # siteid <- "OUL001"
   print(siteid)
   

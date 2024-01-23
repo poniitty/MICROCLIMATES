@@ -1,5 +1,5 @@
 
-microclim_derivs <- function(df_micro, quant){
+microclim_derivs <- function(df_micro, quant_max = 0.999, quant_min = 0.001){
   library(tidyverse)
   library(lubridate)
   library(scales)
@@ -22,15 +22,15 @@ microclim_derivs <- function(df_micro, quant){
   
   sites <- unique(df_micro$site) %>% na.omit %>% sort
   
-  dall <- lapply(sites, microclim_derivs_inner, df_micro = df_micro, quant = quant)
+  dall <- lapply(sites, microclim_derivs_inner, df_micro = df_micro, quant_max = quant_max, quant_min = quant_min)
   
   dall <- dall %>% 
     bind_rows()
   
   return(dall)
 }
-
-microclim_derivs_inner <- function(siteid, df_micro, quant){
+# siteid <- sites[1]
+microclim_derivs_inner <- function(siteid, df_micro, quant_max, quant_min){
   
   print(siteid)
   temp <- df_micro %>% filter(site == siteid | is.na(site)) %>% 
@@ -39,6 +39,12 @@ microclim_derivs_inner <- function(siteid, df_micro, quant){
   tempd <- temp %>% 
     group_by(date) %>% 
     summarise(across(c(year,hydyear,month,doy,hyddoy,T1:T3,T1_imp:T3_imp), ~mean(.x, na.rm = F)))
+  
+  temph <- temp %>% 
+    mutate(hour = hour(datetime)) %>% 
+    group_by(date, hour) %>% 
+    summarise(across(c(year,hydyear,month,doy,hyddoy,T1:T3,T1_imp:T3_imp), ~mean(.x, na.rm = F)),
+              .groups = "drop")
   
   # Annual means
   d1 <- temp %>% 
@@ -126,6 +132,9 @@ microclim_derivs_inner <- function(siteid, df_micro, quant){
            T3_imp = ifelse(T3 > 0, NA, T3_imp)) %>% 
     summarise(across(T1:T3, ~therm_sum(.x, thrh = 0, direc = "below", na.rm = F)),
               round2(across(T1_imp:T3_imp, ~mean(.x, na.rm = T)*100))) %>% 
+    mutate(T1_imp = ifelse(T1 == 0 & is.na(T1_imp), 0, T1_imp),
+           T2_imp = ifelse(T2 == 0 & is.na(T2_imp), 0, T2_imp),
+           T3_imp = ifelse(T3 == 0 & is.na(T3_imp), 0, T3_imp)) %>% 
     drop_na() %>% 
     rename(year = hydyear) %>% 
     mutate(period = "annual", 
@@ -138,9 +147,65 @@ microclim_derivs_inner <- function(siteid, df_micro, quant){
            T3_imp = ifelse(T3 > 0, NA, T3_imp)) %>% 
     summarise(across(T1:T3, ~sum(.x < 0, na.rm = F)),
               round2(across(T1_imp:T3_imp, ~mean(.x, na.rm = T)*100))) %>% 
+    mutate(T1_imp = ifelse(T1 == 0 & is.na(T1_imp), 0, T1_imp),
+           T2_imp = ifelse(T2 == 0 & is.na(T2_imp), 0, T2_imp),
+           T3_imp = ifelse(T3 == 0 & is.na(T3_imp), 0, T3_imp)) %>% 
     drop_na() %>% 
     mutate(period = "annual", 
            var = "FDD_days")
+  
+  # TDH, Thawing degree hours
+  
+  d2h <- temph %>% 
+    group_by(year) %>% 
+    mutate(T1_imp = ifelse(T1 < 0, NA, T1_imp),
+           T2_imp = ifelse(T2 < 0, NA, T2_imp),
+           T3_imp = ifelse(T3 < 0, NA, T3_imp)) %>% 
+    summarise(across(T1:T3, ~therm_sum(.x, thrh = 0, direc = "above", na.rm = F)),
+              round2(across(T1_imp:T3_imp, ~mean(.x, na.rm = T)*100))) %>% 
+    drop_na() %>% 
+    mutate(period = "annual", 
+           var = "TDH")
+  
+  # GDH3
+  d4h <- temph %>% 
+    group_by(year) %>% 
+    mutate(T1_imp = ifelse(T1 < 3, NA, T1_imp),
+           T2_imp = ifelse(T2 < 3, NA, T2_imp),
+           T3_imp = ifelse(T3 < 3, NA, T3_imp)) %>% 
+    summarise(across(T1:T3, ~therm_sum(.x, thrh = 3, direc = "above", na.rm = F)),
+              round2(across(T1_imp:T3_imp, ~mean(.x, na.rm = T)*100))) %>% 
+    drop_na() %>% 
+    mutate(period = "annual", 
+           var = "GDH3")
+  
+  # GDH5
+  d6h <- temph %>% 
+    group_by(year) %>% 
+    mutate(T1_imp = ifelse(T1 < 5, NA, T1_imp),
+           T2_imp = ifelse(T2 < 5, NA, T2_imp),
+           T3_imp = ifelse(T3 < 5, NA, T3_imp)) %>% 
+    summarise(across(T1:T3, ~therm_sum(.x, thrh = 5, direc = "above", na.rm = F)),
+              round2(across(T1_imp:T3_imp, ~mean(.x, na.rm = T)*100))) %>% 
+    drop_na() %>% 
+    mutate(period = "annual", 
+           var = "GDH5")
+  
+  # FDH
+  d8h <- temph %>% 
+    group_by(hydyear) %>% 
+    mutate(T1_imp = ifelse(T1 > 0, NA, T1_imp),
+           T2_imp = ifelse(T2 > 0, NA, T2_imp),
+           T3_imp = ifelse(T3 > 0, NA, T3_imp)) %>% 
+    summarise(across(T1:T3, ~therm_sum(.x, thrh = 0, direc = "below", na.rm = F)),
+              round2(across(T1_imp:T3_imp, ~mean(.x, na.rm = T)*100))) %>% 
+    mutate(T1_imp = ifelse(T1 == 0 & is.na(T1_imp), 0, T1_imp),
+           T2_imp = ifelse(T2 == 0 & is.na(T2_imp), 0, T2_imp),
+           T3_imp = ifelse(T3 == 0 & is.na(T3_imp), 0, T3_imp)) %>% 
+    drop_na() %>% 
+    rename(year = hydyear) %>% 
+    mutate(period = "annual", 
+           var = "FDH")
   
   # Monthly variables
   d10 <- temp %>% 
@@ -170,7 +235,7 @@ microclim_derivs_inner <- function(siteid, df_micro, quant){
   
   miT1 <- temp %>% 
     group_by(year, month) %>% 
-    mutate(n = round(n()*quant)) %>% 
+    mutate(n = round(n()*quant_min)) %>% 
     mutate(ss = sum(T1, na.rm = F)) %>% 
     filter(!is.na(ss)) %>% 
     mutate(n = ifelse(n < 1, 1, n)) %>% 
@@ -187,7 +252,7 @@ microclim_derivs_inner <- function(siteid, df_micro, quant){
   
   miT2 <- temp %>% 
     group_by(year, month) %>% 
-    mutate(n = round(n()*quant)) %>% 
+    mutate(n = round(n()*quant_min)) %>% 
     mutate(ss = sum(T1, na.rm = F)) %>% 
     filter(!is.na(ss)) %>% 
     mutate(n = ifelse(n < 1, 1, n)) %>% 
@@ -204,7 +269,7 @@ microclim_derivs_inner <- function(siteid, df_micro, quant){
   
   miT3 <- temp %>% 
     group_by(year, month) %>% 
-    mutate(n = round(n()*quant)) %>% 
+    mutate(n = round(n()*quant_min)) %>% 
     mutate(ss = sum(T1, na.rm = F)) %>% 
     filter(!is.na(ss)) %>% 
     mutate(n = ifelse(n < 1, 1, n)) %>% 
@@ -223,7 +288,7 @@ microclim_derivs_inner <- function(siteid, df_micro, quant){
   
   maT1 <- temp %>% 
     group_by(year, month) %>% 
-    mutate(n = round(n()*quant)) %>% 
+    mutate(n = round(n()*(1-quant_max))) %>% 
     mutate(ss = sum(T1, na.rm = F)) %>% 
     filter(!is.na(ss)) %>% 
     mutate(n = ifelse(n < 1, 1, n)) %>% 
@@ -240,7 +305,7 @@ microclim_derivs_inner <- function(siteid, df_micro, quant){
   
   maT2 <- temp %>% 
     group_by(year, month) %>% 
-    mutate(n = round(n()*quant)) %>% 
+    mutate(n = round(n()*(1-quant_max))) %>% 
     mutate(ss = sum(T2, na.rm = F)) %>% 
     filter(!is.na(ss)) %>% 
     mutate(n = ifelse(n < 1, 1, n)) %>% 
@@ -257,7 +322,7 @@ microclim_derivs_inner <- function(siteid, df_micro, quant){
   
   maT3 <- temp %>% 
     group_by(year, month) %>% 
-    mutate(n = round(n()*quant)) %>% 
+    mutate(n = round(n()*(1-quant_max))) %>% 
     mutate(ss = sum(T3, na.rm = F)) %>% 
     filter(!is.na(ss)) %>% 
     mutate(n = ifelse(n < 1, 1, n)) %>% 
@@ -508,6 +573,10 @@ microclim_derivs_inner <- function(siteid, df_micro, quant){
                     d7,
                     d8,
                     d9,
+                    d2h,
+                    d4h,
+                    d6h,
+                    d8h,
                     d10,
                     d10b,
                     d11,
